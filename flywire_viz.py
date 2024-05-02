@@ -155,11 +155,17 @@ class NeuronType:
     def get_neurons(self, skeletonize=True, store=False, force=False):
         if len(self.ids) == 0:
             self.get_ids()
-        for root_id in self.ids:
-            neuron = Neuron(root_id, materialization=self.materialization)
-            self.neurons[root_id] = neuron.get_neuron(
+        for idx in range(len(self.ids)):
+            print(f"Processing neuron {idx + 1} of {len(self.ids)}")
+            neuron = Neuron(self.ids[idx], materialization=self.materialization)
+            self.neurons[self.ids[idx]] = neuron.get_neuron(
                 store=store, skeletonize=skeletonize, force=force
             )
+        # for root_id in self.ids:
+        #     neuron = Neuron(root_id, materialization=self.materialization)
+        #     self.neurons[root_id] = neuron.get_neuron(
+        #         store=store, skeletonize=skeletonize, force=force
+        #     )
         return self.neurons
 
 
@@ -216,7 +222,9 @@ class Connectivity:
         else:
             raise ValueError(f"Invalid store value: {store}")
 
-        print(f"--- Examining connectivity {self.source_type} > {self.target_type} ---")
+        print(
+            f"--- Examining connectivity {self.source_type}_{self.source_side} > {self.target_type}_{self.target_side} ---"
+        )
 
     def get_materialization(self):
         ### Used only as a helper function to get the latest materialization
@@ -339,7 +347,7 @@ class Scene:
         navis.plot2d([self.brain, self.neurons])
         plt.show()
 
-    def set_view3d(self, view=None, center=False):
+    def set_view3d(self, view=None, scale_factor=None, center=False):
         if view is None:
             return
         elif isinstance(view, Quaternion):
@@ -358,6 +366,9 @@ class Scene:
         if center:
             self.viewer3d.center_camera()
 
+        if scale_factor is not None:
+            self.viewer3d.camera3d.scale_factor = scale_factor
+
     def save3d(self, filename=None, dpi=300):
         if filename is not None:
             data = self.viewer3d.canvas.render()[..., :3]
@@ -373,82 +384,65 @@ class Scene:
         self.viewer3d.close()
 
 
-def make_all_LPLC2_T_left():
-    for src in ["T5", "T4"]:
-        for subpre in ["", "a", "b", "c", "d"]:
-            c = Connectivity(
-                f"{src}{subpre}",
-                "LPLC2",
-                annotation_version="v2.0.0",
-                materialization_version="latest",
-                default_dataset="production",
-                store="both",
-                source_side="left",
-                target_side="left",
-            )
-            mat = c.get_materialization()
-            filename = f"{mat}_{src}{subpre}_left>LPLC2_left.png"
-            if len(glob(f"{SAVE_IMG_DIR}/{filename}")) == 0:
-                scene = Scene()
-                scene.open3d()
-                c.plot_targets(scene=scene)
-                scene.set_view3d(Quaternion(-0.435, -0.151, -0.632, 0.623))
-                scene.add_brain3d()
-                scene.save3d(filename=filename)
-                scene.close3d()
-
-
-def make_src_trg_left(scrs, trgs):
-    for trg in trgs:
-        for src in scrs:
-            c = Connectivity(
-                f"{src}",
-                f"{trg}",
-                annotation_version="v2.0.0",
-                materialization_version="latest",
-                default_dataset="production",
-                store="both",
-                source_side="left",
-                target_side="left",
-            )
-            mat = c.get_materialization()
-            filename = f"{mat}_{src}_left>{trg}_left.png"
-            if len(glob(f"{SAVE_IMG_DIR}/{filename}")) == 0:
-                scene = Scene()
-                scene.open3d()
-                c.plot_targets(scene=scene)
-                scene.set_view3d(Quaternion(-0.435, -0.151, -0.632, 0.623))
-                scene.add_brain3d()
-                scene.save3d(filename=filename)
-                scene.close3d()
+def make_src_trg(scrs, trgs, side=["left", "right"], overwrite=False):
+    for sd in side:
+        for trg in trgs:
+            for src in scrs:
+                c = Connectivity(
+                    f"{src}",
+                    f"{trg}",
+                    annotation_version="v2.0.0",
+                    materialization_version="latest",
+                    default_dataset="production",
+                    store="both",
+                    source_side=sd,
+                    target_side=sd,
+                )
+                mat = c.get_materialization()
+                filename = f"{mat}_{src}_{sd}>{trg}_{sd}.png"
+                if len(glob(f"{SAVE_IMG_DIR}/{filename}")) == 0 or overwrite:
+                    scene = Scene()
+                    scene.open3d()
+                    c.plot_targets(scene=scene)
+                    if sd == "left":
+                        scene.set_view3d(view=Quaternion(-0.435, -0.151, -0.632, 0.623))
+                    elif sd == "right":
+                        # scene.set_view3d(view=Quaternion(0.46, 0.193, -0.649, 0.575))
+                        scene.set_view3d(view=Quaternion(-0.643, -0.61, -0.447, 0.12))
+                    scene.add_brain3d()
+                    scene.save3d(filename=filename)
+                    scene.close3d()
 
 
 if __name__ == "__main__":
-    # make_all_LPLC2_T_left()
-    make_src_trg_left(
-        [
-            "LPi3-4",
-            "LPi4-3",
-            "Y3",
-            "Tm5f",
-            "Tm5e",
-            "Tm36",
-            "TmY5a",
-            "Tm7",
-            "Tm27",
-            "Tm20",
-            "Tm16",
-            "Tm31",
-            "Tm4",
-            "Tm3",
-        ],
+    # make_src_trg(["LPi3-4", "LPi4-3"], ["LPLC2"], ["right"], overwrite=True)
+    make_src_trg(["Giant Fiber"], ["LPLC2"], ["right", "left"], overwrite=True)
+    make_src_trg(
+        ["T4", "T4a", "T4b", "T4c", "T4d", "T5", "T5a", "T5b", "T5c", "T5d"],
         ["LPLC2"],
+        ["right"],
+        overwrite=True,
     )
-    make_src_trg_left(
-        ["T4d", "T5d"],
-        ["LLPC3"],
-    )
-    make_src_trg_left(
-        ["T4c", "T5c"],
-        ["LLPC2"],
-    )
+    # make_src_trg(
+    #     [
+    #         "LPi3-4",
+    #         "LPi4-3",
+    #         "Y3",
+    #         "Tm5f",
+    #         "Tm5e",
+    #         "Tm36",
+    #         "TmY5a",
+    #         "Tm7",
+    #         "Tm27",
+    #         "Tm20",
+    #         "Tm16",
+    #         "Tm31",
+    #         "Tm4",
+    #         "Tm3",
+    #     ],
+    #     ["LPLC2"],
+    #     ["left", "right"],
+    #     overwrite=False,
+    # )
+    # make_src_trg(["T4d", "T5d"], ["LLPC3"], ["left", "right"], overwrite=False)
+    # make_src_trg(["T4c", "T5c"], ["LLPC2"], ["left", "right"], overwrite=False)
