@@ -34,35 +34,36 @@ class Neuron:
         if not force and os.path.exists(
             f"{DATA_DIR}/{self.materialization}_{self.root_id}.zip"
         ):
-            print(f"Loading {self.materialization}_{self.root_id} from disk")
+            print(f"\nLoading {self.materialization}_{self.root_id} from disk")
             # Pick [0] because it will load as list from .zip
             self.neuron = navis.read_swc(
                 f"{DATA_DIR}/{self.materialization}_{self.root_id}.zip"
             )[0]
         else:
-            print(f"Downloading {self.root_id} from flywire")
+            print(f"\nDownloading {self.root_id} from flywire")
             # self.neuron = flywire.skeletonize_neuron(self.root_id)
             self.neuron = flywire.get_mesh_neuron(self.root_id)
             if skeletonize:
+                print(f" Skeletonizing {self.root_id}")
                 self.neuron = self.neuron.skeletonize()
             if store:
                 self.save_neuron()
         return self.neuron
 
-    def purge_neuron(self):
-        print(f"Purging *_{self.root_id} from disk")
-        files = glob(f"{DATA_DIR}/*_{self.root_id}.zip")
-        for f in files:
-            os.remove(f)
-
     def save_neuron(self, purge=True):
-        # TODO: add a purge option that will delete previous materialization of the same root_id
         if purge:
             self.purge_neuron()
-        print(f"Saving {self.materialization}_{self.root_id} to disk")
+        print(f" Saving {self.materialization}_{self.root_id} to disk")
         navis.write_swc(
             self.neuron, f"{DATA_DIR}/{self.materialization}_{self.root_id}.zip"
         )
+
+    def purge_neuron(self):
+        print(f"  Purging *_{self.root_id} from disk")
+        files = glob(f"{DATA_DIR}/*_{self.root_id}.zip")
+        for f in files:
+            os.remove(f)
+            print(f"Deleted {f}")
 
 
 class NeuronType:
@@ -161,11 +162,6 @@ class NeuronType:
             self.neurons[self.ids[idx]] = neuron.get_neuron(
                 store=store, skeletonize=skeletonize, force=force
             )
-        # for root_id in self.ids:
-        #     neuron = Neuron(root_id, materialization=self.materialization)
-        #     self.neurons[root_id] = neuron.get_neuron(
-        #         store=store, skeletonize=skeletonize, force=force
-        #     )
         return self.neurons
 
 
@@ -384,7 +380,7 @@ class Scene:
         self.viewer3d.close()
 
 
-def make_src_trg(scrs, trgs, side=["left", "right"], overwrite=False):
+def make_src_trg(scrs, trgs, side=["left", "right"], only_adj=False, overwrite=False):
     for sd in side:
         for trg in trgs:
             for src in scrs:
@@ -398,31 +394,43 @@ def make_src_trg(scrs, trgs, side=["left", "right"], overwrite=False):
                     source_side=sd,
                     target_side=sd,
                 )
-                mat = c.get_materialization()
-                filename = f"{mat}_{src}_{sd}>{trg}_{sd}.png"
-                if len(glob(f"{SAVE_IMG_DIR}/{filename}")) == 0 or overwrite:
-                    scene = Scene()
-                    scene.open3d()
-                    c.plot_targets(scene=scene)
-                    if sd == "left":
-                        scene.set_view3d(view=Quaternion(-0.435, -0.151, -0.632, 0.623))
-                    elif sd == "right":
-                        # scene.set_view3d(view=Quaternion(0.46, 0.193, -0.649, 0.575))
-                        scene.set_view3d(view=Quaternion(-0.643, -0.61, -0.447, 0.12))
-                    scene.add_brain3d()
-                    scene.save3d(filename=filename)
-                    scene.close3d()
+                if only_adj:
+                    c.get_adj()
+                else:
+                    mat = c.get_materialization()
+                    filename = f"{mat}_{src}_{sd}>{trg}_{sd}.png"
+                    if len(glob(f"{SAVE_IMG_DIR}/{filename}")) == 0 or overwrite:
+                        scene = Scene()
+                        scene.open3d()
+                        c.plot_targets(scene=scene)
+                        if sd == "left":
+                            scene.set_view3d(
+                                view=Quaternion(-0.435, -0.151, -0.632, 0.623)
+                            )
+                        elif sd == "right":
+                            # scene.set_view3d(view=Quaternion(0.46, 0.193, -0.649, 0.575))
+                            scene.set_view3d(
+                                view=Quaternion(-0.643, -0.61, -0.447, 0.12)
+                            )
+                        scene.add_brain3d()
+                        scene.save3d(filename=filename)
+                        scene.close3d()
 
 
 if __name__ == "__main__":
     # make_src_trg(["LPi3-4", "LPi4-3"], ["LPLC2"], ["right"], overwrite=True)
-    make_src_trg(["Giant Fiber"], ["LPLC2"], ["right", "left"], overwrite=True)
-    make_src_trg(
-        ["T4", "T4a", "T4b", "T4c", "T4d", "T5", "T5a", "T5b", "T5c", "T5d"],
-        ["LPLC2"],
-        ["right"],
-        overwrite=True,
-    )
+    # make_src_trg(
+    #     ["Giant Fiber"], ["LPLC2"], ["right", "left"], only_adj=True, overwrite=True
+    # )
+    # make_src_trg(
+    #     ["LPLC2"], ["Giant Fiber"], ["right", "left"], only_adj=True, overwrite=True
+    # )
+    # make_src_trg(
+    #     ["T4", "T4a", "T4b", "T4c", "T4d", "T5", "T5a", "T5b", "T5c", "T5d"],
+    #     ["LPLC2"],
+    #     ["right"],
+    #     overwrite=True,
+    # )
     # make_src_trg(
     #     [
     #         "LPi3-4",
@@ -446,3 +454,4 @@ if __name__ == "__main__":
     # )
     # make_src_trg(["T4d", "T5d"], ["LLPC3"], ["left", "right"], overwrite=False)
     # make_src_trg(["T4c", "T5c"], ["LLPC2"], ["left", "right"], overwrite=False)
+    pass
